@@ -50,10 +50,15 @@ export class ProofSandbox extends DurableObject<Env> {
 
   async fetch(): Promise<Response> {
     const done = await this.ctx.storage.get<Proof>("proof");
-    if (done) return Response.json(done);
+    if (done && done.stdout.length > 0) return Response.json(done);
 
     const attempted = await this.ctx.storage.get<string>("attempted");
-    if (attempted) {
+    // The first proof stored an empty stdout (ArrayBuffer was not decoded).
+    // Allow exactly one more start, and mark it before the container starts
+    // so a failure cannot loop into a third instance.
+    const rerun = await this.ctx.storage.get<string>("rerun");
+    const canRerun = Boolean(done && done.stdout.length === 0 && !rerun);
+    if (attempted && !canRerun) {
       return Response.json(
         {
           error: "proof already attempted; container will not start again",
@@ -62,6 +67,7 @@ export class ProofSandbox extends DurableObject<Env> {
         { status: 409 },
       );
     }
+    if (canRerun) await this.ctx.storage.put("rerun", "once");
 
     // One shot. A later request must not start another instance.
     await this.ctx.storage.put("attempted", "started");
