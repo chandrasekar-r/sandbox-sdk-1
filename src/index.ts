@@ -17,7 +17,9 @@ type Proof = {
 
 function text(value: unknown): string {
   if (typeof value === "string") return value;
-  if (value instanceof Uint8Array) return new TextDecoder().decode(value);
+  // exec().output().stdout is an ArrayBuffer, not a Uint8Array.
+  if (value instanceof ArrayBuffer) return new TextDecoder().decode(value);
+  if (ArrayBuffer.isView(value)) return new TextDecoder().decode(value);
   return "";
 }
 
